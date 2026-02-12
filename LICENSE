@@ -1,24 +1,532 @@
-This is free and unencumbered software released into the public domain.
+if not game:IsLoaded() then game.Loaded:Wait() end
 
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
+-- 📦 Serviços
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
+-- 🔹 Player local
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
+-- 🛠️ FUNÇÃO DE ATUALIZAÇÃO DO REMOTE (Correção para o erro ao morrer)
+local function getRemote()
+    local basePlayer = player:FindFirstChild("BasePlayer")
+    if basePlayer then
+        local reFolder = basePlayer:FindFirstChild("RE")
+        if reFolder then
+            return reFolder
+        end
+    end
+    return nil
+end
 
-For more information, please refer to <https://unlicense.org>
+-- 💾 SISTEMA DE PERSISTÊNCIA
+local CONFIG_FILE = "KilmyHub_Config.json"
+local settings = {
+    guiPos = {0, 20, 0, 20},
+    selectedIDs = {}
+}
+
+local function saveSettings()
+    if writefile then
+        pcall(function()
+            writefile(CONFIG_FILE, HttpService:JSONEncode(settings))
+        end)
+    end
+end
+
+local function loadSettings()
+    if isfile and isfile(CONFIG_FILE) then
+        local success, decoded = pcall(function() return HttpService:JSONDecode(readfile(CONFIG_FILE)) end)
+        if success then settings = decoded end
+    end
+end
+loadSettings()
+
+-- 🔹 Variáveis
+local selectedPlayers = {}
+local activating = false
+local activationConnection = nil
+local activatingAll = false
+local activationAllConnection = nil
+local lastHeartbeat = tick()
+local lagDetected = false
+local currentFPS = 60
+local banChance = 100
+
+-- 🧠 Checagem de corpo válido
+local function isCustomCharacter(targetPlayer)
+	if not targetPlayer or targetPlayer == player then return false end
+	local character = targetPlayer.Character
+	if not character or not character:IsDescendantOf(workspace) then return false end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
+	if not targetPlayer:FindFirstChild("BasePlayer") then return false end
+	if not humanoid or humanoid.Health <= 0 or not root then return false end
+	
+	if (root.Position.Y < -500) then return false end 
+	return true
+end
+
+-- ⚠️ Notificação rápida
+local function showWarning(message)
+	pcall(function()
+		StarterGui:SetCore("SendNotification", {
+			Title = "KilmyHub ⚠️",
+			Text = message,
+			Duration = 3
+		})
+	end)
+end
+
+-- 💥 Disparo seguro (VELOCIDADE MÁXIMA - MULTI-REMOTE)
+local function safeFire(targetPlayer, position)
+	if not targetPlayer or targetPlayer == player then return end
+	if not position or not isCustomCharacter(targetPlayer) then return end
+
+    local re = getRemote()
+    if not re then return end
+
+	local character = targetPlayer.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+
+    local hitPos = root.Position + Vector3.new(math.random(-1,1), math.random(-1,1), math.random(-1,1))
+
+	pcall(function()
+        -- RockStomp (Original)
+        local rs = re:FindFirstChild("RockStompHitbox")
+        if rs then rs:FireServer({character}, hitPos) end
+
+        -- PlasmaPunch
+        local pp = re:FindFirstChild("PlasmaPunchHitbox")
+        if pp then pp:FireServer({character}) end
+
+        -- ShellSpin
+        local ss = re:FindFirstChild("ShellSpinHitbox")
+        if ss then ss:FireServer({character}) end
+
+        -- WindupPunch
+        local wp = re:FindFirstChild("WindupPunchHitbox")
+        if wp then wp:FireServer({character}) end
+
+        -- WallPush
+        local wpush = re:FindFirstChild("WallPushHitbox")
+        if wpush then wpush:FireServer({character, Instance.new("Folder")}, root.CFrame) end
+
+        -- EnergyBall
+        local eb = re:FindFirstChild("EnergyBallHitbox")
+        if eb then eb:FireServer({character}) end
+
+        -- SlimePunch
+        local sp = re:FindFirstChild("SlimePunchHitbox")
+        if sp then sp:FireServer({character}) end
+
+        -- EnergyBeam
+        local ebeam = re:FindFirstChild("EnergyBeamHitbox")
+        if ebeam then ebeam:FireServer({character}) end
+
+        -- SpiritPunches
+        local spirits = re:FindFirstChild("SpiritPunchesHitbox")
+        if spirits then spirits:FireServer({character}, true) end
+
+        -- BearTraps
+        local bt = re:FindFirstChild("BearTrapsHitbox")
+        if bt then bt:FireServer({character}) end
+
+        -- ShellThrow
+        local sthrow = re:FindFirstChild("ShellThrowHitbox")
+        if sthrow then sthrow:FireServer({character}) end
+
+        -- WindFlair
+        local wf = re:FindFirstChild("WindFlairHitbox")
+        if wf then wf:FireServer({character}) end
+
+        -- TelekineticPush
+        local tp = re:FindFirstChild("TelekineticPushHitbox")
+        if tp then tp:FireServer({character}) end
+
+        -- FlameSlice
+        local fs = re:FindFirstChild("FlameSliceHitbox")
+        if fs then fs:FireServer({character}) end
+
+        -- DaggerDash
+        local dd = re:FindFirstChild("DaggerDashHitbox")
+        if dd then dd:FireServer(character) end
+
+        -- SuperPunch
+        local sup = re:FindFirstChild("SuperPunchHitbox")
+        if sup then sup:FireServer({character}) end
+
+        -- SilkSmash
+        local silk = re:FindFirstChild("SilkSmashHitbox")
+        if silk then silk:FireServer({character}) end
+
+        -- AxeKick (NOVO EVENTO ADICIONADO)
+        local ak = re:FindFirstChild("AxeKickHitbox")
+        if ak then ak:FireServer({character}) end
+	end)
+end
+
+-- 🔁 Conectar respawn
+local function connectRespawn(playerObj)
+	playerObj.CharacterAdded:Connect(function()
+		task.wait(0.1) 
+		if activating or activatingAll then
+			if playerObj == player then return end
+			local root = playerObj.Character and playerObj.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				task.spawn(function() safeFire(playerObj, root.Position) end)
+			end
+		end
+	end)
+end
+
+-- 🧩 Controle Manual
+function stopActivating()
+	if activationConnection then activationConnection:Disconnect() end
+	activationConnection = nil
+	activating = false
+end
+
+function stopActivatingAll()
+	if activationAllConnection then activationAllConnection:Disconnect() end
+	activationAllConnection = nil
+	activatingAll = false
+end
+
+function stopEverything()
+	stopActivating()
+	stopActivatingAll()
+end
+
+-- 🔫 Ativação contínua
+local function startActivating()
+	if activating or #selectedPlayers == 0 then return end
+	activating = true
+	for _, plr in ipairs(selectedPlayers) do
+		if plr ~= player then connectRespawn(plr) end
+	end
+
+	activationConnection = RunService.Heartbeat:Connect(function()
+		lastHeartbeat = tick()
+		for _, plr in ipairs(selectedPlayers) do
+			if plr and plr ~= player and isCustomCharacter(plr) then
+				safeFire(plr, plr.Character.HumanoidRootPart.Position)
+			end
+		end
+	end)
+end
+
+-- 🎛️ GUI Setup
+local playerGui = player:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui", playerGui)
+screenGui.Name = "CombatHitboxGui"
+screenGui.ResetOnSpawn = false
+
+local containerFrame = Instance.new("Frame", screenGui)
+containerFrame.Size = UDim2.new(0, 190, 0, 45)
+containerFrame.Position = UDim2.new(settings.guiPos[1], settings.guiPos[2], settings.guiPos[3], settings.guiPos[4])
+containerFrame.BackgroundTransparency = 0.5
+containerFrame.BackgroundColor3 = Color3.new(0,0,0)
+containerFrame.Active = true
+containerFrame.Draggable = true 
+
+local dragging, dragInput, dragStart, startPos
+containerFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = containerFrame.Position
+    end
+end)
+containerFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then dragInput = input end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+        dragging = false
+        settings.guiPos = {containerFrame.Position.X.Scale, containerFrame.Position.X.Offset, containerFrame.Position.Y.Scale, containerFrame.Position.Y.Offset}
+        saveSettings()
+    end
+end)
+RunService.RenderStepped:Connect(function()
+    if dragging and dragInput then
+        local delta = dragInput.Position - dragStart
+        containerFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+local button = Instance.new("TextButton", containerFrame)
+button.Size = UDim2.new(0, 25, 0, 30)
+button.Text = "OFF"
+button.BackgroundTransparency = 1
+button.TextColor3 = Color3.new(1,1,1)
+button.Font = Enum.Font.SourceSansBold
+button.TextScaled = true
+
+local buttonAll = Instance.new("TextButton", containerFrame)
+buttonAll.Size = UDim2.new(0, 25, 0, 30)
+buttonAll.Position = UDim2.new(0, 40, 0, 0)
+buttonAll.BackgroundTransparency = 1
+buttonAll.Text = "ALL"
+buttonAll.TextColor3 = Color3.new(1,0.3,0.3)
+buttonAll.Font = Enum.Font.SourceSansBold
+buttonAll.TextScaled = true
+
+local fpsLabel = Instance.new("TextLabel", containerFrame)
+fpsLabel.Size = UDim2.new(0, 120, 0, 25)
+fpsLabel.Position = UDim2.new(0, 70, 0, 5)
+fpsLabel.BackgroundTransparency = 1
+fpsLabel.TextColor3 = Color3.new(0,1,0)
+fpsLabel.Font = Enum.Font.SourceSansBold
+fpsLabel.TextScaled = true
+
+local trashButton = Instance.new("TextButton", containerFrame)
+trashButton.Size = UDim2.new(0, 20, 0, 20)
+trashButton.Position = UDim2.new(1, -22, 0, -5)
+trashButton.BackgroundColor3 = Color3.new(0.2, 0, 0)
+trashButton.Text = "🗑️"
+trashButton.TextScaled = true
+trashButton.MouseButton1Click:Connect(function()
+	stopEverything()
+	screenGui:Destroy()
+end)
+
+local playerListFrame = Instance.new("Frame", containerFrame)
+playerListFrame.Size = UDim2.new(0, 180, 0, 120)
+playerListFrame.Position = UDim2.new(0, 0, 0, 50)
+playerListFrame.BackgroundTransparency = 1
+
+local UIListLayout = Instance.new("UIListLayout", playerListFrame)
+local playerButtons = {}
+
+local function togglePlayer(plr, forceState)
+    local pID = tostring(plr.UserId)
+    local isSelected = table.find(selectedPlayers, plr)
+    local btn = playerButtons[plr]
+    
+    if forceState == "ON" or (forceState == nil and not isSelected) then
+        if not isSelected then
+            table.insert(selectedPlayers, plr)
+            table.insert(settings.selectedIDs, pID)
+            connectRespawn(plr)
+        end
+        if btn then btn.TextColor3 = Color3.new(0, 1, 0) end
+    elseif forceState == "OFF" or (forceState == nil and isSelected) then
+        for i, v in ipairs(selectedPlayers) do if v == plr then table.remove(selectedPlayers, i) break end end
+        local idIdx = table.find(settings.selectedIDs, pID)
+        if idIdx then table.remove(settings.selectedIDs, idIdx) end
+        if btn then btn.TextColor3 = Color3.new(1, 0, 0) end
+    end
+end
+
+local function createPlayerButton(plr)
+	if playerButtons[plr] then return end
+	local btn = Instance.new("TextButton", playerListFrame)
+	btn.Size = UDim2.new(1, -5, 0, 16)
+	btn.BackgroundTransparency = 1
+	btn.Text = plr.DisplayName
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 14
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+
+    playerButtons[plr] = btn
+    
+    if table.find(settings.selectedIDs, tostring(plr.UserId)) then
+        togglePlayer(plr, "ON")
+    else
+        btn.TextColor3 = Color3.new(1, 0, 0)
+    end
+
+	btn.MouseButton1Click:Connect(function()
+		togglePlayer(plr)
+        saveSettings()
+	end)
+end
+
+local function updatePlayerList()
+	for _, plr in pairs(Players:GetPlayers()) do
+		if plr ~= player and not playerButtons[plr] then createPlayerButton(plr) end
+	end
+end
+
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(function(plr)
+	if playerButtons[plr] then playerButtons[plr]:Destroy() playerButtons[plr] = nil end
+end)
+updatePlayerList()
+
+button.MouseButton1Click:Connect(function()
+	if activating then stopActivating() button.Text = "OFF" else startActivating() button.Text = "ON" end
+end)
+
+buttonAll.MouseButton1Click:Connect(function()
+    local allIn = true
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and not table.find(selectedPlayers, plr) then
+            allIn = false; break
+        end
+    end
+    
+    local newState = allIn and "OFF" or "ON"
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player then togglePlayer(plr, newState) end
+    end
+    saveSettings()
+end)
+
+local lastTime = tick()
+local frames = 0
+RunService.Heartbeat:Connect(function(delta)
+	local now = tick()
+	frames = frames + 1
+	if now - lastTime >= 1 then
+		currentFPS = math.floor(frames / (now - lastTime))
+		frames = 0
+		lastTime = now
+		fpsLabel.Text = string.format("FPS: %d | Range: INF", currentFPS)
+	end
+end)
+
+-- 💠 OTIMIZAÇÃO
+StarterGui:SetCore("SendNotification", {
+    Title = "ACTIVATE MORE OPTIMIZATION",
+    Text = "Enable 99999900% optimization?",
+    Duration = 12,
+    Button1 = "Yes",
+    Button2 = "No",
+    Callback = function(button)
+        if button == "Button1" then
+            task.spawn(function()
+                while task.wait(3) do
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Beam") or obj:IsA("Explosion") then
+                            obj.Enabled = false
+                        elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                            obj:Destroy()
+                        end
+                    end
+                end
+            end)
+        end
+    end
+})
+
+local UIListLayout = Instance.new("UIListLayout", playerListFrame)
+local playerButtons = {}
+
+local function togglePlayer(plr, forceState)
+    local pID = tostring(plr.UserId)
+    local isSelected = table.find(selectedPlayers, plr)
+    local btn = playerButtons[plr]
+    
+    if forceState == "ON" or (forceState == nil and not isSelected) then
+        if not isSelected then
+            table.insert(selectedPlayers, plr)
+            table.insert(settings.selectedIDs, pID)
+            connectRespawn(plr)
+        end
+        if btn then btn.TextColor3 = Color3.new(0, 1, 0) end
+    elseif forceState == "OFF" or (forceState == nil and isSelected) then
+        for i, v in ipairs(selectedPlayers) do if v == plr then table.remove(selectedPlayers, i) break end end
+        local idIdx = table.find(settings.selectedIDs, pID)
+        if idIdx then table.remove(settings.selectedIDs, idIdx) end
+        if btn then btn.TextColor3 = Color3.new(1, 0, 0) end
+    end
+end
+
+local function createPlayerButton(plr)
+	if playerButtons[plr] then return end
+	local btn = Instance.new("TextButton", playerListFrame)
+	btn.Size = UDim2.new(1, -5, 0, 16)
+	btn.BackgroundTransparency = 1
+	btn.Text = plr.DisplayName
+	btn.Font = Enum.Font.SourceSansBold
+	btn.TextSize = 14
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+
+    playerButtons[plr] = btn
+    
+    if table.find(settings.selectedIDs, tostring(plr.UserId)) then
+        togglePlayer(plr, "ON")
+    else
+        btn.TextColor3 = Color3.new(1, 0, 0)
+    end
+
+	btn.MouseButton1Click:Connect(function()
+		togglePlayer(plr)
+        saveSettings()
+	end)
+end
+
+local function updatePlayerList()
+	for _, plr in pairs(Players:GetPlayers()) do
+		if plr ~= player and not playerButtons[plr] then createPlayerButton(plr) end
+	end
+end
+
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(function(plr)
+	if playerButtons[plr] then playerButtons[plr]:Destroy() playerButtons[plr] = nil end
+end)
+updatePlayerList()
+
+button.MouseButton1Click:Connect(function()
+	if activating then stopActivating() button.Text = "OFF" else startActivating() button.Text = "ON" end
+end)
+
+buttonAll.MouseButton1Click:Connect(function()
+    local allIn = true
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player and not table.find(selectedPlayers, plr) then
+            allIn = false; break
+        end
+    end
+    
+    local newState = allIn and "OFF" or "ON"
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player then togglePlayer(plr, newState) end
+    end
+    saveSettings()
+end)
+
+local lastTime = tick()
+local frames = 0
+RunService.Heartbeat:Connect(function(delta)
+	local now = tick()
+	frames = frames + 1
+	if now - lastTime >= 1 then
+		currentFPS = math.floor(frames / (now - lastTime))
+		frames = 0
+		lastTime = now
+		fpsLabel.Text = string.format("FPS: %d | Range: INF", currentFPS)
+	end
+end)
+
+-- 💠 OTIMIZAÇÃO
+StarterGui:SetCore("SendNotification", {
+    Title = "ACTIVATE MORE OPTIMIZATION",
+    Text = "Enable 99999900% optimization?",
+    Duration = 12,
+    Button1 = "Yes",
+    Button2 = "No",
+    Callback = function(button)
+        if button == "Button1" then
+            task.spawn(function()
+                while task.wait(3) do
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Beam") or obj:IsA("Explosion") then
+                            obj.Enabled = false
+                        elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                            obj:Destroy()
+                        end
+                    end
+                end
+            end)
+        end
+    end
+})
